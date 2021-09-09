@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+
+require 'open-uri'
+
+url         = 'https://aur.archlinux.org'
+search_stub = '/packages/?O=0&K='
+search_term = ARGV[0]
+result      = URI.parse("#{url}#{search_stub}#{search_term}").read.split(/\n/).reject{|ln| ln.empty?}
+parse       = result.select{|ln| ln.include? 'href'}.select{|ln| ln =~ /\/packages\/#{search_term}/}
+links = {}
+
+parse.each do |lk|
+  links.merge!({lk.scan(/>[-_\w]+</).to_s.gsub(/[\[\]\<\>\"]/, '')=>lk.split(/\"/)[1]})
+end
+warn links
+
+# links.each do |n,l|
+#   n === search_term ? `git clone #{url}/#{search_term}` : ()
+# end

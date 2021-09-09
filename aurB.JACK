@@ -1,0 +1,26 @@
+#!/usr/bin/env ruby
+
+require 'open-uri'
+require 'colorize'
+
+search_term = ARGV[0]
+url = 'https://aur.archlinux.org'
+cURL="#{url}/cgit/aur.git/snapshot/#{search_term}.tar.gz"
+archive = "#{search_term}.tar.gz"
+check = begin
+          URI.parse("#{url}/packages/#{search_term}").read
+        rescue
+          puts "404 Not Found:".on_light_red
+          printf '    '
+          printf '-> '.black.on_light_yellow
+          puts "#{search_term}".light_magenta.on_light_yellow
+          nil
+        end
+
+unless check.nil?
+  `curl -L #{cURL} -o #{archive} && tar -xvf #{archive} && rm #{archive}`
+end
+
+size    = `du -hs #{search_term}`.split(/\n/).map{|ln| ln.chomp}
+confirm = {size.first.split(/\t/).last => size.first.split(/\t/).first}
+warn confirm

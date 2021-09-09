@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+
+require 'open-uri'
+require 'colorize'
+
+def aur_jack(search_term)
+  url = 'https://aur.archlinux.org'
+  cURL="#{url}/cgit/aur.git/snapshot/#{search_term}.tar.gz"
+  archive = "#{search_term}.tar.gz"
+  check = begin
+            URI.parse("#{url}/packages/#{search_term}").read
+          rescue
+            puts "404 Not Found:".on_light_red
+            printf '    '
+            printf '-> '.black.on_light_yellow
+            puts "#{search_term}".light_magenta.on_light_yellow
+            nil
+          end
+  
+  unless check.nil?
+    `curl -L #{cURL} -o #{archive} && tar -xvf #{archive} && rm #{archive}`
+  end
+  
+  size    = `du -hs #{search_term}`.split(/\n/).map{|ln| ln.chomp}
+  {size.first.split(/\t/).last => size.first.split(/\t/).first}
+end
+
+def aur_make
+  require 'sudo'
+  require 'fileutils'
+
+  depends  = []
+  result   = make_once
+  retry_ct = 0
+  
+  result.each do |ln|
+    /ERROR/ =~ ln ? ( error_check ln ; return 1) : ()
+    /->/    =~ ln ? depends.append(ln) : ()
+  end
+ # .split(/\s/).last 
+  File.write('/tmp/aur_depends', depends)
+  retry_ct > 0 ? pac_depends(depends) : ()
+  target = Dir.glob("**/*/").select{|d| /^.+usr\/$/ =~ d}.first
+  Sudo::Wrapper.run do |sudo|
+    sudo[FileUtils].cp("#{Dir.new(target)}", '/')
+  end
+end
+
+def error_check(message)
+  case message
+  when /already been built/
+    printf " #{`pwd`.to_s.split('/').last.chomp} is already Installed \n".green
+  else
+    puts message
+  end
+  # puts 'Error detected, checking dependencies';
+  # retry_ct += 1
+end
+
+def make_once
+  `makepkg 2>&1`.split(/\n/).map!{|ln| ln.chomp}
+end
+
+def pac_depends(list)
+  `sudo pacman -Sy --noconfirm --needed #{list.join(' ')}`
+end
+
+track     = aur_jack(ARGV[0])
+dir_exist = track.values.to_s.scan(/\d+/).to_s.gsub(/[\[\]\"]/,'').to_f > 4.0
+if dir_exist === true
+  Dir.chdir ARGV[0]
+  sleep 2
+  aur_make
+end
+
